@@ -1,0 +1,1395 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Convertidor a .exe</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0a0a14;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .container {
+            background: rgba(255,255,255,0.05);
+            backdrop-filter: blur(20px);
+            border-radius: 40px;
+            padding: 20px 25px;
+            max-width: 1400px;
+            width: 100%;
+            border: 1px solid rgba(255,255,255,0.06);
+            box-shadow: 0 60px 120px rgba(0,0,0,0.5);
+            max-height: 98vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .header { text-align: center; margin-bottom: 12px; flex-shrink: 0; }
+        .header .badge {
+            display: inline-block;
+            background: linear-gradient(135deg, rgba(102,126,234,0.15), rgba(118,75,162,0.15));
+            padding: 3px 14px;
+            border-radius: 100px;
+            font-size: 10px;
+            font-weight: 600;
+            color: #a8b5ff;
+            letter-spacing: 0.6px;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+            border: 1px solid rgba(102,126,234,0.1);
+        }
+        .header h1 {
+            color: #ffffff;
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: -1px;
+        }
+        .header h1 .highlight {
+            background: linear-gradient(135deg, #667eea, #a78bfa, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .header p {
+            color: rgba(255,255,255,0.4);
+            font-size: 12px;
+            margin-top: 2px;
+        }
+        .main-layout {
+            display: grid;
+            grid-template-columns: 340px 1fr;
+            gap: 15px;
+            flex: 1;
+            min-height: 0;
+        }
+        .left-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-height: 0;
+        }
+        .right-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-height: 0;
+        }
+        
+        /* Drop Zone */
+        .drop-zone {
+            border: 2px dashed rgba(255,255,255,0.08);
+            border-radius: 14px;
+            padding: 14px 12px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: rgba(255,255,255,0.02);
+            min-height: 100px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        .drop-zone:hover {
+            border-color: rgba(102,126,234,0.3);
+            background: rgba(102,126,234,0.04);
+        }
+        .drop-zone.dragover {
+            border-color: #667eea;
+            background: rgba(102,126,234,0.08);
+            transform: scale(1.01);
+        }
+        .drop-zone.dropping {
+            border-color: #22c55e;
+            background: rgba(34,197,94,0.06);
+        }
+        .drop-zone .icon { font-size: 24px; margin-bottom: 4px; }
+        .drop-zone .title { color: rgba(255,255,255,0.9); font-size: 13px; font-weight: 600; }
+        .drop-zone .subtitle { color: rgba(255,255,255,0.35); font-size: 11px; margin-top: 2px; }
+        .drop-zone .hint {
+            color: rgba(255,255,255,0.2);
+            font-size: 9px;
+            margin-top: 6px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .drop-zone .hint .key {
+            background: rgba(255,255,255,0.05);
+            padding: 1px 8px;
+            border-radius: 4px;
+            font-size: 8px;
+            font-weight: 500;
+            color: rgba(255,255,255,0.3);
+            border: 1px solid rgba(255,255,255,0.04);
+        }
+        .drop-zone .file-info {
+            margin-top: 6px;
+            padding: 4px 10px;
+            background: rgba(34,197,94,0.08);
+            border-radius: 6px;
+            display: none;
+            border: 1px solid rgba(34,197,94,0.12);
+            width: 100%;
+            max-width: 280px;
+        }
+        .drop-zone .file-info.show { display: block; animation: slideUp 0.3s ease; }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .drop-zone .file-info .name { color: #4ade80; font-weight: 600; font-size: 11px; display: block; }
+        .drop-zone .file-info .details { color: rgba(255,255,255,0.35); font-size: 9px; }
+        .drop-zone .file-info .details span { color: rgba(255,255,255,0.5); font-weight: 500; }
+        .drop-zone .file-info .analysis-badge {
+            display: inline-block;
+            margin-top: 4px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 8px;
+            font-weight: 600;
+        }
+        .drop-zone .file-info .analysis-badge.pass { background: rgba(34,197,94,0.15); color: #4ade80; }
+        .drop-zone .file-info .analysis-badge.fail { background: rgba(239,68,68,0.15); color: #f87171; }
+        input[type="file"] { display: none; }
+
+        /* Inputs compactos */
+        .compact-inputs {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            width: 100%;
+            flex-shrink: 0;
+        }
+        .compact-inputs .row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .compact-inputs .row label {
+            color: rgba(255,255,255,0.5);
+            font-size: 10px;
+            white-space: nowrap;
+            min-width: 60px;
+        }
+        .compact-inputs .row input[type="text"] {
+            flex: 1;
+            padding: 4px 8px;
+            border-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(255,255,255,0.04);
+            color: white;
+            font-size: 11px;
+            font-family: inherit;
+            min-width: 0;
+        }
+        .compact-inputs .row input[type="text"]:focus {
+            outline: none;
+            border-color: rgba(102,126,234,0.4);
+            background: rgba(255,255,255,0.06);
+        }
+        .compact-inputs .row input[type="text"]::placeholder { color: rgba(255,255,255,0.2); }
+        
+        /* Icon selector */
+        .icon-selector {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .icon-selector .icon-preview {
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(255,255,255,0.04);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+        .icon-selector .icon-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        .icon-selector .icon-preview .placeholder {
+            color: rgba(255,255,255,0.2);
+            font-size: 12px;
+        }
+        .icon-selector .btn-icon {
+            padding: 3px 10px;
+            border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(255,255,255,0.04);
+            color: rgba(255,255,255,0.6);
+            font-size: 9px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: inherit;
+            white-space: nowrap;
+        }
+        .icon-selector .btn-icon:hover {
+            background: rgba(255,255,255,0.08);
+            color: white;
+        }
+        .icon-selector .btn-icon.remove {
+            border-color: rgba(239,68,68,0.3);
+            color: #f87171;
+            padding: 3px 6px;
+            font-size: 10px;
+        }
+        .icon-selector .btn-icon.remove:hover {
+            background: rgba(239,68,68,0.1);
+        }
+        .icon-selector .icon-name {
+            color: rgba(255,255,255,0.3);
+            font-size: 9px;
+            max-width: 80px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* Progress */
+        .progress-container {
+            margin: 4px 0 6px 0;
+            display: none;
+            flex-shrink: 0;
+        }
+        .progress-container.show { display: block; animation: slideUp 0.3s ease; }
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 3px;
+        }
+        .progress-header .label { color: rgba(255,255,255,0.5); font-size: 10px; font-weight: 500; }
+        .progress-header .percent { color: rgba(255,255,255,0.8); font-size: 10px; font-weight: 600; }
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 100px;
+            overflow: hidden;
+        }
+        .progress-bar .fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #a78bfa, #764ba2);
+            border-radius: 100px;
+            transition: width 0.5s ease;
+            width: 0%;
+        }
+        .progress-status {
+            text-align: center;
+            color: rgba(255,255,255,0.3);
+            font-size: 9px;
+            margin-top: 3px;
+        }
+        .status-message {
+            margin: 4px 0 6px 0;
+            padding: 6px 12px;
+            border-radius: 6px;
+            display: none;
+            font-size: 10px;
+            font-weight: 500;
+            animation: slideUp 0.3s ease;
+            flex-shrink: 0;
+        }
+        .status-message.show { display: block; }
+        .status-message.success {
+            background: rgba(34,197,94,0.08);
+            color: #4ade80;
+            border: 1px solid rgba(34,197,94,0.1);
+        }
+        .status-message.error {
+            background: rgba(239,68,68,0.08);
+            color: #f87171;
+            border: 1px solid rgba(239,68,68,0.1);
+        }
+        .status-message.warning {
+            background: rgba(251,191,36,0.08);
+            color: #fbbf24;
+            border: 1px solid rgba(251,191,36,0.1);
+        }
+        .button-group {
+            display: flex;
+            gap: 6px;
+            margin-top: 4px;
+            flex-shrink: 0;
+        }
+        .btn {
+            padding: 6px 14px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            font-family: inherit;
+            flex: 1;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            box-shadow: 0 4px 16px rgba(102,126,234,0.2);
+        }
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 30px rgba(102,126,234,0.3);
+        }
+        .btn-primary:disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        .btn-secondary {
+            background: rgba(255,255,255,0.05);
+            color: rgba(255,255,255,0.6);
+            border: 1px solid rgba(255,255,255,0.06);
+        }
+        .btn-secondary:hover {
+            background: rgba(255,255,255,0.08);
+            color: rgba(255,255,255,0.8);
+        }
+        .btn-success {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            color: white;
+            box-shadow: 0 4px 16px rgba(34,197,94,0.2);
+        }
+        .btn-success:hover { transform: translateY(-2px); box-shadow: 0 6px 30px rgba(34,197,94,0.3); }
+        .btn .spinner {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid rgba(255,255,255,0.15);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 0.7s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .status-bar {
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 9px;
+            text-align: center;
+            color: rgba(255,255,255,0.5);
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.04);
+            flex-shrink: 0;
+        }
+        .status-bar .online { color: #4ade80; }
+        .status-bar .offline { color: #f87171; }
+        
+        /* Editor */
+        .editor-container {
+            background: #0d1a2b;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.06);
+            overflow: hidden;
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+        }
+        .editor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 10px;
+            background: rgba(255,255,255,0.03);
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            flex-shrink: 0;
+        }
+        .editor-header .file-selector {
+            display: flex;
+            gap: 4px;
+            overflow-x: auto;
+            max-width: 300px;
+        }
+        .editor-header .file-selector button {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.06);
+            color: rgba(255,255,255,0.4);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 8px;
+            cursor: pointer;
+            font-family: inherit;
+            white-space: nowrap;
+        }
+        .editor-header .file-selector button:hover,
+        .editor-header .file-selector button.active {
+            background: rgba(102,126,234,0.15);
+            color: #a8b5ff;
+            border-color: rgba(102,126,234,0.2);
+        }
+        .editor-header .line-count {
+            color: rgba(255,255,255,0.2);
+            font-size: 8px;
+            white-space: nowrap;
+        }
+        .editor-body {
+            flex: 1;
+            overflow: auto;
+            padding: 6px 0;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 10px;
+            line-height: 1.5;
+            position: relative;
+            min-height: 0;
+        }
+        .editor-body::-webkit-scrollbar { width: 3px; }
+        .editor-body::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); }
+        .editor-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 100px; }
+        
+        .editor-body .line-numbers {
+            position: absolute;
+            left: 0;
+            top: 0;
+            padding: 0 6px;
+            color: rgba(255,255,255,0.08);
+            text-align: right;
+            user-select: none;
+            pointer-events: none;
+            font-size: 9px;
+            min-width: 24px;
+        }
+        .editor-body .code-content {
+            padding-left: 34px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            color: #d4d4d4;
+        }
+        .editor-body .code-content .line-error {
+            background: rgba(239,68,68,0.2);
+            border-left: 3px solid #f87171;
+            display: block;
+            padding-left: 4px;
+            position: relative;
+        }
+        .editor-body .code-content .line-error::after {
+            content: "⚠️";
+            position: absolute;
+            right: 4px;
+            color: #f87171;
+        }
+        .editor-body .code-content .line-warning {
+            background: rgba(251,191,36,0.1);
+            border-left: 3px solid #fbbf24;
+            display: block;
+            padding-left: 4px;
+        }
+        .editor-body .code-content .line-info {
+            background: rgba(102,126,234,0.05);
+            border-left: 3px solid #667eea;
+            display: block;
+            padding-left: 4px;
+        }
+        
+        /* File tree */
+        .file-tree {
+            background: rgba(0,0,0,0.2);
+            border-radius: 6px;
+            padding: 6px 8px;
+            max-height: 120px;
+            overflow-y: auto;
+            flex-shrink: 0;
+            display: none;
+        }
+        .file-tree.show { display: block; }
+        .file-tree::-webkit-scrollbar { width: 3px; }
+        .file-tree::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); }
+        .file-tree::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 100px; }
+        .file-tree .file-item {
+            font-size: 9px;
+            padding: 2px 4px;
+            color: rgba(255,255,255,0.5);
+            cursor: pointer;
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .file-tree .file-item:hover {
+            background: rgba(255,255,255,0.05);
+            color: rgba(255,255,255,0.8);
+        }
+        .file-tree .file-item .icon { font-size: 10px; }
+        .file-tree .file-item .badge {
+            font-size: 7px;
+            padding: 0 4px;
+            border-radius: 3px;
+            background: rgba(102,126,234,0.15);
+            color: #a8b5ff;
+        }
+        .file-tree .file-item .badge.error {
+            background: rgba(239,68,68,0.15);
+            color: #f87171;
+        }
+        
+        /* Terminal */
+        .terminal-container {
+            background: #0a0a0a;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.06);
+            overflow: hidden;
+            flex: 0 0 auto;
+            max-height: 160px;
+            min-height: 80px;
+            display: flex;
+            flex-direction: column;
+        }
+        .terminal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 3px 10px;
+            background: rgba(255,255,255,0.03);
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            flex-shrink: 0;
+        }
+        .terminal-header span {
+            color: rgba(255,255,255,0.4);
+            font-size: 8px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .terminal-header .dot {
+            display: inline-block;
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: #22c55e;
+        }
+        .terminal-header .dot.error {
+            background: #f87171;
+        }
+        .terminal-header .dot.warning {
+            background: #fbbf24;
+        }
+        .terminal-body {
+            flex: 1;
+            overflow: auto;
+            padding: 4px 10px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 9px;
+            line-height: 1.4;
+            color: #a0a0a0;
+            min-height: 50px;
+            max-height: 130px;
+        }
+        .terminal-body::-webkit-scrollbar { width: 3px; }
+        .terminal-body::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); }
+        .terminal-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 100px; }
+        
+        .terminal-body .log-line {
+            padding: 1px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.01);
+        }
+        .terminal-body .log-line.error {
+            color: #f87171;
+            background: rgba(239,68,68,0.05);
+        }
+        .terminal-body .log-line.success {
+            color: #4ade80;
+        }
+        .terminal-body .log-line.warning {
+            color: #fbbf24;
+        }
+        .terminal-body .log-line .line-ref {
+            color: rgba(255,255,255,0.15);
+            font-size: 7px;
+            margin-right: 4px;
+        }
+        .terminal-body .log-line .line-number {
+            color: rgba(251,191,36,0.4);
+            font-size: 7px;
+            margin-left: 4px;
+            cursor: pointer;
+        }
+        .terminal-body .log-line .line-number:hover {
+            color: #fbbf24;
+        }
+        .features {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6px;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(255,255,255,0.04);
+            flex-shrink: 0;
+        }
+        .feature {
+            text-align: center;
+            padding: 6px 4px;
+            background: rgba(255,255,255,0.02);
+            border-radius: 6px;
+        }
+        .feature .emoji { font-size: 14px; display: block; margin-bottom: 1px; }
+        .feature p { font-size: 8px; color: rgba(255,255,255,0.25); line-height: 1.2; }
+        
+        @media (max-width: 900px) {
+            .main-layout { grid-template-columns: 1fr; }
+            .container { padding: 12px; max-height: none; }
+            .header h1 { font-size: 20px; }
+            .left-panel { max-height: none; }
+            .drop-zone { min-height: 80px; padding: 10px; }
+        }
+        @media (max-width: 600px) {
+            .container { padding: 8px; }
+            .drop-zone { min-height: 60px; padding: 8px; }
+            .compact-inputs .row { flex-wrap: wrap; }
+            .button-group { flex-direction: column; }
+            .btn { width: 100%; }
+            .features { grid-template-columns: repeat(2, 1fr); }
+            .icon-selector .icon-name { max-width: 50px; }
+        }
+        ::-webkit-scrollbar { width: 3px; }
+        ::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 100px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="badge">⚡ Conversión Instantánea</div>
+            <h1>Convertidor a <span class="highlight">.exe</span></h1>
+            <p>Arrastra tu carpeta con todos los archivos · Incluye todo el proyecto</p>
+        </div>
+
+        <div class="main-layout">
+            <!-- Panel Izquierdo -->
+            <div class="left-panel">
+                <div class="drop-zone" id="dropZone">
+                    <div class="icon" id="dropIcon">📁</div>
+                    <div class="title" id="dropTitle">Arrastra tu carpeta</div>
+                    <div class="subtitle" id="dropSubtitle">o haz clic para seleccionarla</div>
+                    <div class="hint">
+                        <span>Todo el proyecto se incluirá</span>
+                        <span class="key">📂 carpetas + archivos</span>
+                    </div>
+                    <div class="file-info" id="fileInfo">
+                        <span class="name" id="fileName"></span>
+                        <span class="details">📄 <span id="fileCount">0</span> archivos · 📁 <span id="folderCount">0</span> carpetas</span>
+                        <div id="analysisBadge"></div>
+                    </div>
+                    <input type="file" id="fileInput" webkitdirectory directory multiple>
+                </div>
+
+                <!-- File Tree -->
+                <div class="file-tree" id="fileTree">
+                    <div id="fileTreeContent"></div>
+                </div>
+
+                <div class="compact-inputs">
+                    <div class="row">
+                        <label>📝 Nombre:</label>
+                        <input type="text" id="nombreExe" placeholder="MiApp" value="">
+                    </div>
+                    <div class="row">
+                        <label>🖼️ Ícono:</label>
+                        <div class="icon-selector">
+                            <div class="icon-preview" id="iconPreview">
+                                <span class="placeholder">+</span>
+                            </div>
+                            <button class="btn-icon" id="iconBtn">Seleccionar</button>
+                            <button class="btn-icon remove" id="removeIconBtn" style="display:none;">✕</button>
+                            <span class="icon-name" id="iconName">Sin ícono</span>
+                            <input type="file" id="iconInput" accept="image/*">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="progress-container" id="progressContainer">
+                    <div class="progress-header">
+                        <span class="label" id="progressLabel">Iniciando...</span>
+                        <span class="percent" id="progressPercent">0%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="fill" id="progressFill"></div>
+                    </div>
+                    <div class="progress-status" id="progressStatus">Preparando...</div>
+                </div>
+
+                <div class="status-message" id="statusMessage"></div>
+
+                <div class="button-group">
+                    <button class="btn btn-primary" id="convertBtn" disabled>🚀 Convertir</button>
+                    <button class="btn btn-secondary" id="resetBtn">🔄 Reiniciar</button>
+                </div>
+
+                <div class="status-bar" id="statusBar">
+                    🔌 Conectando al servidor...
+                </div>
+            </div>
+
+            <!-- Panel Derecho -->
+            <div class="right-panel">
+                <div class="editor-container">
+                    <div class="editor-header">
+                        <span>📄 Editor</span>
+                        <div class="file-selector" id="fileSelector"></div>
+                        <span class="line-count" id="lineCount">Líneas: 0</span>
+                    </div>
+                    <div class="editor-body" id="editorBody">
+                        <div class="line-numbers" id="lineNumbers"></div>
+                        <div class="code-content" id="codeContent">
+                            <span style="color: rgba(255,255,255,0.2);">Selecciona una carpeta...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="terminal-container">
+                    <div class="terminal-header">
+                        <span>
+                            <span class="dot" id="terminalDot"></span>
+                            Terminal
+                        </span>
+                        <span style="color: rgba(255,255,255,0.2); font-size: 7px;">Ctrl+C limpiar</span>
+                    </div>
+                    <div class="terminal-body" id="terminalBody">
+                        <div class="log-line" style="color: rgba(255,255,255,0.2);">Esperando acción...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="features">
+            <div class="feature"><span class="emoji">⚡</span><p>Conversión rápida</p></div>
+            <div class="feature"><span class="emoji">📁</span><p>Proyectos completos</p></div>
+            <div class="feature"><span class="emoji">🔄</span><p>Arrastra y suelta</p></div>
+            <div class="feature"><span class="emoji">🖼️</span><p>Ícono personalizado</p></div>
+        </div>
+    </div>
+
+    <script>
+        class Converter {
+            constructor() {
+                this.dropZone = document.getElementById('dropZone');
+                this.fileInput = document.getElementById('fileInput');
+                this.iconInput = document.getElementById('iconInput');
+                this.iconBtn = document.getElementById('iconBtn');
+                this.removeIconBtn = document.getElementById('removeIconBtn');
+                this.iconPreview = document.getElementById('iconPreview');
+                this.iconName = document.getElementById('iconName');
+                this.convertBtn = document.getElementById('convertBtn');
+                this.resetBtn = document.getElementById('resetBtn');
+                this.fileInfo = document.getElementById('fileInfo');
+                this.fileName = document.getElementById('fileName');
+                this.fileCount = document.getElementById('fileCount');
+                this.folderCount = document.getElementById('folderCount');
+                this.analysisBadge = document.getElementById('analysisBadge');
+                this.fileTree = document.getElementById('fileTree');
+                this.fileTreeContent = document.getElementById('fileTreeContent');
+                this.fileSelector = document.getElementById('fileSelector');
+                this.progressContainer = document.getElementById('progressContainer');
+                this.progressFill = document.getElementById('progressFill');
+                this.progressLabel = document.getElementById('progressLabel');
+                this.progressPercent = document.getElementById('progressPercent');
+                this.progressStatus = document.getElementById('progressStatus');
+                this.statusMessage = document.getElementById('statusMessage');
+                this.statusBar = document.getElementById('statusBar');
+                this.dropIcon = document.getElementById('dropIcon');
+                this.dropTitle = document.getElementById('dropTitle');
+                this.dropSubtitle = document.getElementById('dropSubtitle');
+                this.nombreExe = document.getElementById('nombreExe');
+                this.editorBody = document.getElementById('editorBody');
+                this.codeContent = document.getElementById('codeContent');
+                this.lineNumbers = document.getElementById('lineNumbers');
+                this.terminalBody = document.getElementById('terminalBody');
+                this.terminalDot = document.getElementById('terminalDot');
+                this.lineCount = document.getElementById('lineCount');
+                this.selectedFolder = null;
+                this.isConverting = false;
+                this.port = 5500;
+                this.iconData = null;
+                this.iconFileName = null;
+                this.analysisReport = null;
+                this.filesData = [];
+                this.currentFile = null;
+                this.selectedFiles = [];
+                this.init();
+            }
+
+            async init() {
+                try {
+                    const response = await fetch('/api/port');
+                    const data = await response.json();
+                    this.port = data.port;
+                    this.statusBar.innerHTML = `✅ Conectado <span class="online">http://127.0.0.1:${this.port}</span>`;
+                    this.log('✅ Conectado al servidor en puerto ' + this.port, 'success');
+                } catch (e) {
+                    this.port = await this.detectarPuerto();
+                    this.statusBar.innerHTML = `✅ Conectado <span class="online">http://127.0.0.1:${this.port}</span>`;
+                }
+                this.terminalDot.className = 'dot';
+                
+                this.dropZone.addEventListener('dragover', (e) => { 
+                    e.preventDefault(); 
+                    this.dropZone.classList.add('dragover'); 
+                });
+                this.dropZone.addEventListener('dragleave', () => { 
+                    this.dropZone.classList.remove('dragover'); 
+                });
+                this.dropZone.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    this.dropZone.classList.remove('dragover');
+                    const items = e.dataTransfer.items;
+                    if (items) {
+                        for (let item of items) {
+                            const entry = item.webkitGetAsEntry();
+                            if (entry && entry.isDirectory) {
+                                this.handleFolder([item]);
+                                break;
+                            }
+                        }
+                    }
+                });
+                this.dropZone.addEventListener('click', () => { 
+                    if (!this.isConverting) this.fileInput.click(); 
+                });
+                this.fileInput.addEventListener('change', (e) => { 
+                    if (e.target.files.length > 0) this.handleFolder(e.target.files); 
+                });
+                this.convertBtn.addEventListener('click', () => this.convert());
+                this.resetBtn.addEventListener('click', () => this.reset());
+                
+                this.iconBtn.addEventListener('click', () => this.iconInput.click());
+                this.iconInput.addEventListener('change', (e) => {
+                    if (e.target.files.length > 0) {
+                        this.handleIcon(e.target.files[0]);
+                    }
+                });
+                this.removeIconBtn.addEventListener('click', () => {
+                    this.iconData = null;
+                    this.iconFileName = null;
+                    this.iconPreview.innerHTML = '<span class="placeholder">+</span>';
+                    this.removeIconBtn.style.display = 'none';
+                    this.iconName.textContent = 'Sin ícono';
+                    this.iconInput.value = '';
+                    this.log('🖼️ Ícono eliminado', 'info');
+                });
+                
+                document.addEventListener('keydown', (e) => {
+                    if (e.ctrlKey && e.key === 'c') {
+                        e.preventDefault();
+                        this.clearTerminal();
+                    }
+                });
+            }
+
+            handleIcon(file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const dataUrl = e.target.result;
+                    this.iconData = dataUrl;
+                    this.iconFileName = file.name;
+                    this.iconPreview.innerHTML = `<img src="${dataUrl}" alt="ícono">`;
+                    this.removeIconBtn.style.display = 'inline-block';
+                    this.iconName.textContent = file.name.length > 20 ? file.name.substring(0, 18) + '...' : file.name;
+                    this.log(`🖼️ Ícono cargado: ${file.name}`, 'success');
+                };
+                reader.readAsDataURL(file);
+            }
+
+            async detectarPuerto() {
+                for (let p = 5000; p <= 9000; p++) {
+                    try {
+                        const response = await fetch(`http://127.0.0.1:${p}`, {
+                            method: 'HEAD',
+                            mode: 'cors',
+                            cache: 'no-cache'
+                        });
+                        if (response.ok) return p;
+                    } catch (e) {}
+                }
+                return 5500;
+            }
+
+            async handleFolder(files) {
+                if (this.isConverting) return;
+                this.selectedFolder = files;
+                this.selectedFiles = Array.from(files);
+                
+                const name = files[0].webkitRelativePath ? files[0].webkitRelativePath.split('/')[0] : 'Carpeta';
+                this.fileName.textContent = `📁 ${name}`;
+                
+                // Contar archivos y carpetas
+                let totalFiles = this.selectedFiles.length;
+                let folders = new Set();
+                let pythonFiles = 0;
+                
+                this.selectedFiles.forEach(file => {
+                    const path = file.webkitRelativePath || file.name;
+                    const parts = path.split('/');
+                    if (parts.length > 1) {
+                        folders.add(parts.slice(0, -1).join('/'));
+                    }
+                    if (path.endsWith('.py')) pythonFiles++;
+                });
+                
+                this.fileCount.textContent = totalFiles;
+                this.folderCount.textContent = folders.size;
+                this.fileInfo.classList.add('show');
+                
+                // Mostrar árbol de archivos
+                this.renderFileTree();
+                this.fileTree.classList.add('show');
+                
+                // Encontrar main.py y analizarlo
+                let mainFile = null;
+                for (let file of this.selectedFiles) {
+                    const path = file.webkitRelativePath || file.name;
+                    if (path.endsWith('main.py')) {
+                        mainFile = file;
+                        break;
+                    }
+                }
+
+                if (mainFile) {
+                    await this.analyzeMainFile(mainFile);
+                    this.log(`📄 main.py analizado (${pythonFiles} archivos Python en total)`, 'success');
+                } else {
+                    this.analysisBadge.innerHTML = '<span class="analysis-badge fail">❌ No se encontró main.py</span>';
+                    this.convertBtn.disabled = true;
+                    this.log('❌ No se encontró main.py en la carpeta', 'error');
+                }
+
+                this.dropZone.classList.add('dropping');
+                this.dropIcon.textContent = '📁';
+                this.dropTitle.textContent = '¡Carpeta seleccionada!';
+                this.dropSubtitle.textContent = `${name} (${totalFiles} archivos, ${folders.size} carpetas)`;
+                
+                // Mostrar código del main.py
+                if (mainFile) {
+                    this.mostrarArchivo(mainFile);
+                }
+                
+                this.log(`📁 Carpeta seleccionada: ${name} (${totalFiles} archivos, ${folders.size} carpetas)`, 'success');
+            }
+
+            renderFileTree() {
+                const tree = {};
+                
+                this.selectedFiles.forEach(file => {
+                    const path = file.webkitRelativePath || file.name;
+                    const parts = path.split('/');
+                    let current = tree;
+                    for (let i = 0; i < parts.length; i++) {
+                        const part = parts[i];
+                        if (i === parts.length - 1) {
+                            // Es un archivo
+                            if (!current._files) current._files = [];
+                            current._files.push({
+                                nombre: part,
+                                ruta: path,
+                                esPython: part.endsWith('.py'),
+                                esHtml: part.endsWith('.html'),
+                                esCss: part.endsWith('.css'),
+                                esJs: part.endsWith('.js')
+                            });
+                        } else {
+                            // Es una carpeta
+                            if (!current[part]) current[part] = {};
+                            current = current[part];
+                        }
+                    }
+                });
+
+                const renderTree = (node, prefix = '') => {
+                    let html = '';
+                    const keys = Object.keys(node).filter(k => k !== '_files').sort();
+                    
+                    for (const key of keys) {
+                        const subNode = node[key];
+                        html += `<div class="file-item" style="padding-left: ${prefix.length * 12 + 4}px;">📂 ${key}</div>`;
+                        html += renderTree(subNode, prefix + '  ');
+                    }
+                    
+                    if (node._files) {
+                        const files = node._files.sort((a, b) => a.nombre.localeCompare(b.nombre));
+                        for (const file of files) {
+                            const icon = file.esPython ? '🐍' : file.esHtml ? '🌐' : file.esCss ? '🎨' : file.esJs ? '📜' : '📄';
+                            const badge = file.esPython ? '<span class="badge">Python</span>' : '';
+                            const isMain = file.nombre === 'main.py';
+                            const click = `onclick="window.converter.mostrarArchivoPorRuta('${file.ruta}')"`;
+                            html += `<div class="file-item" style="padding-left: ${prefix.length * 12 + 12}px;" ${click}>
+                                <span class="icon">${icon}</span>
+                                ${file.nombre}
+                                ${badge}
+                                ${isMain ? '⭐' : ''}
+                            </div>`;
+                        }
+                    }
+                    
+                    return html;
+                };
+
+                this.fileTreeContent.innerHTML = renderTree(tree);
+                // Exponer el converter para los clics
+                window.converter = this;
+            }
+
+            mostrarArchivoPorRuta(ruta) {
+                const file = this.selectedFiles.find(f => {
+                    const path = f.webkitRelativePath || f.name;
+                    return path === ruta;
+                });
+                if (file) {
+                    this.mostrarArchivo(file);
+                }
+            }
+
+            mostrarArchivo(file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const content = e.target.result;
+                    this.currentFile = file;
+                    const path = file.webkitRelativePath || file.name;
+                    this.renderCode(content, path);
+                    this.log(`📄 Mostrando: ${path}`, 'info');
+                };
+                reader.readAsText(file);
+            }
+
+            async analyzeMainFile(file) {
+                try {
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    
+                    const response = await fetch('/api/analyze', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    if (response.ok) {
+                        const report = await response.json();
+                        this.analysisReport = report;
+                        
+                        if (report.valido) {
+                            this.analysisBadge.innerHTML = `<span class="analysis-badge pass">✅ ${report.total_errores} errores, ${report.total_advertencias} advertencias</span>`;
+                            this.convertBtn.disabled = false;
+                            this.log(`✅ Análisis OK: ${report.total_errores} errores, ${report.total_advertencias} advertencias`, 'success');
+                        } else {
+                            this.analysisBadge.innerHTML = `<span class="analysis-badge fail">❌ ${report.total_errores} errores encontrados</span>`;
+                            this.convertBtn.disabled = true;
+                            this.log(`❌ Análisis fallido: ${report.total_errores} errores`, 'error');
+                            
+                            for (let error of report.errores || []) {
+                                this.log(`❌ Línea ${error.linea || '?'}: ${error.mensaje}`, 'error', error.linea);
+                            }
+                        }
+                        
+                        this.aplicarResaltadoErrores(report);
+                    } else {
+                        this.log('❌ Error al analizar el archivo', 'error');
+                    }
+                } catch (e) {
+                    this.log(`❌ Error en análisis: ${e.message}`, 'error');
+                }
+            }
+
+            aplicarResaltadoErrores(report) {
+                const lineas = this.codeContent.querySelectorAll('span[class^="line-"]');
+                
+                lineas.forEach(el => {
+                    el.className = '';
+                    el.style.background = '';
+                    el.style.borderLeft = '';
+                });
+                
+                if (!report) return;
+                
+                for (let error of report.errores || []) {
+                    const idx = (error.linea || 1) - 1;
+                    if (idx < lineas.length) {
+                        const el = lineas[idx];
+                        if (el) {
+                            el.className = 'line-error';
+                            el.title = error.mensaje;
+                        }
+                    }
+                }
+                
+                for (let warning of report.advertencias || []) {
+                    const idx = (warning.linea || 1) - 1;
+                    if (idx < lineas.length) {
+                        const el = lineas[idx];
+                        if (el) {
+                            el.className = 'line-warning';
+                            el.title = warning.mensaje;
+                        }
+                    }
+                }
+            }
+
+            renderCode(content, filename = 'main.py') {
+                const lineas = content.split('\n');
+                this.lineCount.textContent = `Líneas: ${lineas.length} · ${filename}`;
+                
+                let nums = '';
+                for (let i = 1; i <= lineas.length; i++) {
+                    nums += i + '\n';
+                }
+                this.lineNumbers.textContent = nums;
+                
+                let html = '';
+                for (let i = 0; i < lineas.length; i++) {
+                    const linea = lineas[i] || ' ';
+                    let lineaHtml = this.resaltarCodigo(linea);
+                    html += `<span class="line-${i+1}">${lineaHtml}</span>\n`;
+                }
+                this.codeContent.innerHTML = html;
+                
+                // Actualizar selector de archivos
+                this.updateFileSelector(filename);
+            }
+
+            updateFileSelector(currentFile) {
+                const pythonFiles = this.selectedFiles.filter(f => {
+                    const path = f.webkitRelativePath || f.name;
+                    return path.endsWith('.py');
+                });
+                
+                this.fileSelector.innerHTML = pythonFiles.map(f => {
+                    const path = f.webkitRelativePath || f.name;
+                    const isActive = path === currentFile;
+                    return `<button class="${isActive ? 'active' : ''}" onclick="window.converter.mostrarArchivoPorRuta('${path}')">
+                        ${path.split('/').pop()}
+                    </button>`;
+                }).join('');
+            }
+
+            resaltarCodigo(linea) {
+                let html = linea;
+                const keywords = ['import', 'from', 'def', 'class', 'if', 'else', 'elif', 'while', 'for', 'return', 'try', 'except', 'finally', 'with', 'as', 'pass', 'break', 'continue', 'raise', 'yield', 'lambda', 'True', 'False', 'None'];
+                for (let kw of keywords) {
+                    const regex = new RegExp(`\\b${kw}\\b`, 'g');
+                    html = html.replace(regex, `<span style="color: #c586c0;">${kw}</span>`);
+                }
+                html = html.replace(/"([^"]*)"/g, '<span style="color: #ce9178;">"$1"</span>');
+                html = html.replace(/'([^']*)'/g, '<span style="color: #ce9178;">\'$1\'</span>');
+                html = html.replace(/(#.*)$/g, '<span style="color: #6a9955;">$1</span>');
+                html = html.replace(/\b(def|class)\s+(\w+)/g, '<span style="color: #c586c0;">$1</span> <span style="color: #dcdcaa;">$2</span>');
+                return html;
+            }
+
+            irALinea(lineNumber) {
+                const targetLine = document.querySelector(`.line-${lineNumber}`);
+                if (targetLine) {
+                    targetLine.scrollIntoView({ block: 'center' });
+                    targetLine.style.background = 'rgba(102,126,234,0.15)';
+                    setTimeout(() => {
+                        targetLine.style.background = '';
+                    }, 2000);
+                }
+            }
+
+            log(message, type = 'info', lineNumber = null) {
+                const logLine = document.createElement('div');
+                logLine.className = `log-line ${type}`;
+                const timestamp = new Date().toLocaleTimeString();
+                let lineHtml = `<span class="line-ref">[${timestamp}]</span> ${message}`;
+                if (lineNumber) {
+                    lineHtml += ` <span class="line-number" data-line="${lineNumber}">📍 línea ${lineNumber}</span>`;
+                }
+                logLine.innerHTML = lineHtml;
+                this.terminalBody.appendChild(logLine);
+                this.terminalBody.scrollTop = this.terminalBody.scrollHeight;
+                
+                if (lineNumber) {
+                    logLine.querySelector('.line-number')?.addEventListener('click', () => {
+                        this.irALinea(lineNumber);
+                    });
+                }
+                
+                if (type === 'error') {
+                    this.terminalDot.className = 'dot error';
+                } else if (type === 'warning') {
+                    this.terminalDot.className = 'dot warning';
+                } else if (type === 'success') {
+                    this.terminalDot.className = 'dot';
+                }
+            }
+
+            clearTerminal() {
+                this.terminalBody.innerHTML = '';
+                this.log('🧹 Terminal limpiada', 'info');
+                this.terminalDot.className = 'dot';
+            }
+
+            async convert() {
+                if (this.isConverting || !this.selectedFolder) return;
+                
+                this.isConverting = true;
+                this.convertBtn.disabled = true;
+                this.convertBtn.innerHTML = '<span class="spinner"></span> Convirtiendo...';
+                this.progressContainer.classList.add('show');
+                this.statusMessage.classList.remove('show');
+                this.log('🚀 Iniciando conversión...', 'info');
+                this.terminalDot.className = 'dot';
+
+                try {
+                    this.updateProgress(10, 'Preparando archivos...');
+                    this.log('📦 Preparando todos los archivos del proyecto...', 'info');
+                    
+                    const zip = await this.createZip();
+                    this.log('✅ Todos los archivos comprimidos', 'success');
+                    
+                    this.updateProgress(30, 'Subiendo archivos...');
+                    this.log('📤 Subiendo proyecto completo...', 'info');
+                    
+                    const formData = new FormData();
+                    formData.append('folder', zip, 'project.zip');
+                    
+                    const nombre = this.nombreExe.value.trim() || 'MiApp';
+                    formData.append('nombre', nombre);
+                    this.log(`📝 Nombre: ${nombre}`, 'info');
+                    
+                    if (this.iconData) {
+                        formData.append('icono', this.iconData);
+                        this.log('🖼️ Ícono incluido', 'success');
+                    }
+                    
+                    this.updateProgress(50, 'Procesando en el servidor...');
+                    this.log('⚙️ Procesando...', 'info');
+                    
+                    const response = await fetch('/api/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    this.updateProgress(80, 'Finalizando...');
+                    const data = await response.json();
+                    
+                    if (data.error) {
+                        this.log(`❌ ${data.error}`, 'error');
+                        this.showStatus('❌ ' + data.error, 'error');
+                        this.updateProgress(0, 'Error');
+                        const match = data.error.match(/line\s+(\d+)/i);
+                        if (match) {
+                            const lineNum = parseInt(match[1]);
+                            this.irALinea(lineNum);
+                            this.log(`📍 Error en línea ${lineNum}`, 'error', lineNum);
+                        }
+                    } else {
+                        this.updateProgress(100, '¡Completado!');
+                        this.log(`✅ ${data.message}`, 'success');
+                        this.log(`📌 Puerto: ${data.port || 'N/A'}`, 'success');
+                        this.showStatus('✅ ' + data.message, 'success');
+                        
+                        if (data.download_url) {
+                            const btn = document.createElement('a');
+                            btn.href = data.download_url;
+                            btn.className = 'btn btn-success';
+                            btn.innerHTML = '⬇️ Descargar .exe';
+                            btn.download = '';
+                            const group = document.querySelector('.button-group');
+                            const old = group.querySelector('.btn-success');
+                            if (old) old.remove();
+                            group.appendChild(btn);
+                            this.log('📥 .exe listo para descargar', 'success');
+                        }
+                    }
+                } catch (err) {
+                    console.error('Error:', err);
+                    this.log(`❌ Error: ${err.message}`, 'error');
+                    this.showStatus('❌ Error: ' + err.message, 'error');
+                    this.updateProgress(0, 'Error');
+                } finally {
+                    this.isConverting = false;
+                    this.convertBtn.disabled = false;
+                    this.convertBtn.innerHTML = '🚀 Convertir';
+                }
+            }
+
+            createZip() {
+                return new Promise((resolve, reject) => {
+                    const zip = new JSZip();
+                    const files = this.selectedFiles;
+                    let done = 0;
+                    if (files.length === 0) { reject(new Error('No hay archivos')); return; }
+                    files.forEach(file => {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            const path = file.webkitRelativePath || file.name;
+                            // Mantener la estructura de carpetas
+                            zip.file(path, e.target.result.split(',')[1]);
+                            done++;
+                            if (done === files.length) {
+                                zip.generateAsync({ type: 'blob' }).then(resolve).catch(reject);
+                            }
+                        };
+                        reader.onerror = () => reject(new Error('Error al leer archivo: ' + file.name));
+                        reader.readAsDataURL(file);
+                    });
+                });
+            }
+
+            updateProgress(pct, label) {
+                this.progressFill.style.width = pct + '%';
+                this.progressPercent.textContent = pct + '%';
+                this.progressStatus.textContent = label || `Progreso: ${pct}%`;
+                this.progressLabel.textContent = label || `Progreso: ${pct}%`;
+            }
+
+            showStatus(msg, type) {
+                this.statusMessage.textContent = msg;
+                this.statusMessage.className = 'status-message show ' + type;
+            }
+
+            reset() {
+                this.selectedFolder = null;
+                this.selectedFiles = [];
+                this.isConverting = false;
+                this.convertBtn.disabled = true;
+                this.convertBtn.innerHTML = '🚀 Convertir';
+                this.fileInfo.classList.remove('show');
+                this.fileTree.classList.remove('show');
+                this.progressContainer.classList.remove('show');
+                this.statusMessage.classList.remove('show');
+                this.dropZone.classList.remove('dropping');
+                this.fileInput.value = '';
+                this.dropIcon.textContent = '📁';
+                this.dropTitle.textContent = 'Arrastra tu carpeta';
+                this.dropSubtitle.textContent = 'o haz clic para seleccionarla';
+                this.nombreExe.value = '';
+                this.codeContent.innerHTML = '<span style="color: rgba(255,255,255,0.2);">Selecciona una carpeta...</span>';
+                this.lineNumbers.textContent = '';
+                this.lineCount.textContent = 'Líneas: 0';
+                this.fileSelector.innerHTML = '';
+                this.iconData = null;
+                this.iconFileName = null;
+                this.iconPreview.innerHTML = '<span class="placeholder">+</span>';
+                this.removeIconBtn.style.display = 'none';
+                this.iconName.textContent = 'Sin ícono';
+                this.iconInput.value = '';
+                this.analysisBadge.innerHTML = '';
+                this.analysisReport = null;
+                const old = document.querySelector('.btn-success');
+                if (old) old.remove();
+                this.updateProgress(0, '');
+                this.log('🔄 Reiniciando...', 'info');
+                this.terminalDot.className = 'dot';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            new Converter();
+        });
+    </script>
+</body>
+</html>
